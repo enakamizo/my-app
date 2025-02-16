@@ -13,24 +13,53 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read # This is required for actions/checkout
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
           node-version: '18.x'
 
-      - name: npm install, build, and test
+      - name: Install dependencies (including production)
         run: |
-          npm install
+          npm install --production
+
+      - name: Build the project
+        run: |
           npm run build --if-present
+
+      - name: Run tests (if any)
+        run: |
           npm run test --if-present
 
+      - name: Prepare deployment artifact
+        run: |
+          mkdir -p deploy
+          if [ -d ".next/standalone" ]; then
+            cp -r .next/standalone/ ./deploy
+          else
+            echo ".next/standalone directory not found"
+          fi
+          if [ -d "public" ]; then
+            cp -r public ./deploy
+          else
+            echo "public directory not found, skipping"
+          fi
+          if [ -d ".next/static" ]; then
+            mkdir -p ./deploy/.next/static
+            cp -r .next/static/. ./deploy/.next/static
+          else
+            echo ".next/static directory not found"
+          fi
+          cp package.json ./deploy/ || echo "package.json not found"
+          cp next.config.mjs ./deploy/ || echo "next.config.mjs not found"
+
       - name: Zip artifact for deployment
-        run: zip release.zip ./* -r
+        run: zip release.zip ./deploy -r
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -52,6 +81,18 @@ jobs:
           name: node-app
 
       - name: Unzip artifact for deployment
+        run: unzip release.zip
+      
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'app-advanced3-3'
+          slot-name: 'Production'
+          package: .
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E33BABA90F134DFFB49EEAD990CDD7E7 }}
+
+
         run: unzip release.zip
       
       - name: 'Deploy to Azure Web App'
