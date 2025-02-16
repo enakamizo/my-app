@@ -17,36 +17,40 @@
 # For more information on the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # For more samples to get started with GitHub Action workflows to deploy to Azure: https://github.com/Azure/actions-workflow-samples
 
-name: Deploy to Azure
+- name: Copy artifact for deployment job
+  run: |
+    mkdir -p deploy
+    if [ -d ".next/standalone" ]; then
+      cp -r .next/standalone/. ./deploy
+    else
+      echo ".next/standalone directory not found"
+    fi
 
-on:
-  push:
-    branches:
-      - main
+    if [ -d "public" ]; then
+      cp -r ./public ./deploy
+    else
+      echo "public directory not found, skipping"
+    fi
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
+    if [ -d ".next/static" ]; then
+      mkdir -p ./deploy/.next/static
+      cp -r .next/static/. ./deploy/.next/static
+    else
+      echo ".next/static directory not found"
+    fi
 
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    cp package.json ./deploy/ || echo "package.json not found"
+    cp next.config.mjs ./deploy/ || echo "next.config.mjs not found"
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 18
+# このスクリプトは、デプロイに必要なファイルを `deploy` ディレクトリにコピーします。
+# Next.jsプロジェクトのビルド成果物、`standalone` ディレクトリ、`public` ディレクトリ、`static` ディレクトリ、
+# `package.json`、`next.config.mjs` をコピーします。
+# 存在しないファイルがある場合は、エラーメッセージを表示します。
 
-    - name: Install dependencies
-      run: npm install
+- name: Zip artifact for deployment
+  run: zip release.zip ./deploy -r
 
-    - name: Build project
-      run: npm run build
+# このスクリプトは、`deploy` ディレクトリの内容を `release.zip` というZipファイルに圧縮します。
+# `-r` オプションは、ディレクトリを再帰的に圧縮することを示します。
 
-    - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v3
-      with:
-        app-name: "app-advanced3-3"
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: .
 
